@@ -1,0 +1,531 @@
+(function () {
+  "use strict";
+
+  const QUIZZES = Object.freeze({
+    kpa: {
+      title: "Kodeks postępowania administracyjnego",
+      shortTitle: "KPA",
+      file: "data/pytania_Kodeks_postepowania_administracyjnego_KPA.csv"
+    },
+    pracownicy: {
+      title: "Ustawa o pracownikach samorządowych",
+      shortTitle: "O pracownikach samorządowych",
+      file: "data/pytania_ustawa_o_pracownikach_samorzadowych.csv"
+    },
+    lasy: {
+      title: "Ustawa o lasach",
+      shortTitle: "O lasach",
+      file: "data/pytania_ustawa_o_lasach.csv"
+    },
+    samorzad: {
+      title: "Ustawa o samorządzie gminnym",
+      shortTitle: "O samorządzie",
+      file: "data/pytania_ustawa_o_samorzadzie_gminnym.csv"
+    },
+    przyroda: {
+      title: "Ustawa o ochronie przyrody",
+      shortTitle: "O ochronie przyrody",
+      file: "data/pytania_ustawa_o_ochronie_przyrody.csv"
+    },
+    informacje: {
+      title: "Ustawa o udostępnianiu informacji o środowisku",
+      shortTitle: "O udostępnianiu informacji",
+      file: "data/pytania_ustawa_informacja_srodowisko_OOS.csv"
+    }
+  });
+
+  const LETTERS = ["A", "B", "C", "D"];
+  const cache = new Map();
+  const app = document.getElementById("app");
+
+  const state = {
+    quizId: null,
+    sourceQuestions: [],
+    questions: [],
+    currentQuestionIndex: 0,
+    correctAnswers: 0,
+    incorrectAnswers: 0,
+    answered: false,
+    selectedAnswerIndex: null,
+    answers: []
+  };
+
+  function createElement(tag, className, text) {
+    const element = document.createElement(tag);
+    if (className) element.className = className;
+    if (text !== undefined) element.textContent = text;
+    return element;
+  }
+
+  function clearApp() {
+    app.replaceChildren();
+  }
+
+  function shuffleArray(array) {
+    const result = [...array];
+    for (let i = result.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [result[i], result[j]] = [result[j], result[i]];
+    }
+    return result;
+  }
+
+  function prepareQuizSession(sourceQuestions) {
+    return shuffleArray(sourceQuestions).map(question => ({
+      ...question,
+      answers: shuffleArray(question.answers.map(answer => ({ ...answer })))
+    }));
+  }
+
+  function resetSessionCounters() {
+    state.currentQuestionIndex = 0;
+    state.correctAnswers = 0;
+    state.incorrectAnswers = 0;
+    state.answered = false;
+    state.selectedAnswerIndex = null;
+    state.answers = [];
+  }
+
+  function setDocumentTitle(suffix) {
+    document.title = suffix ? `${suffix} — Testy z ustaw` : "Testy z ustaw";
+  }
+
+  function updateURL(quizId, { replace = false } = {}) {
+    const url = new URL(window.location.href);
+    if (quizId) {
+      url.searchParams.set("quiz", quizId);
+    } else {
+      url.searchParams.delete("quiz");
+    }
+    const method = replace ? "replaceState" : "pushState";
+    window.history[method]({}, "", url);
+  }
+
+  function getBestScore(quizId) {
+    try {
+      const value = localStorage.getItem(`ustawy-best-${quizId}`);
+      if (value === null) return null;
+      const score = Number(value);
+      return Number.isFinite(score) ? score : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function saveBestScore(quizId, score) {
+    try {
+      const previous = getBestScore(quizId);
+      if (previous === null || score > previous) {
+        localStorage.setItem(`ustawy-best-${quizId}`, String(score));
+      }
+    } catch (_) {
+      // localStorage is an optional enhancement only.
+    }
+  }
+
+  function showHome({ updateHistory = true } = {}) {
+    state.quizId = null;
+    state.sourceQuestions = [];
+    state.questions = [];
+    resetSessionCounters();
+    setDocumentTitle("");
+    if (updateHistory) updateURL(null);
+
+    clearApp();
+    app.className = "app-shell home-shell";
+
+    const hero = createElement("header", "home-header");
+    hero.append(
+      createElement("p", "eyebrow", "NAUKA PRZEPISÓW"),
+      createElement("h1", "home-title", "Testy z ustaw"),
+      createElement("p", "home-subtitle", "Wybierz ustawę, z której chcesz rozwiązać test.")
+    );
+
+    const grid = createElement("section", "quiz-grid");
+    grid.setAttribute("aria-label", "Dostępne testy");
+
+    Object.entries(QUIZZES).forEach(([quizId, quiz], index) => {
+      const button = createElement("button", "quiz-card");
+      button.type = "button";
+      button.dataset.quizId = quizId;
+      button.setAttribute("aria-label", `Rozpocznij test: ${quiz.title}`);
+
+      const ordinal = createElement("span", "quiz-card-number", String(index + 1).padStart(2, "0"));
+      const title = createElement("span", "quiz-card-title", quiz.shortTitle);
+      const meta = createElement("span", "quiz-card-meta");
+      const best = getBestScore(quizId);
+      meta.textContent = best === null ? "Rozpocznij test" : `Najlepszy wynik: ${best}%`;
+      const arrow = createElement("span", "quiz-card-arrow", "→");
+      arrow.setAttribute("aria-hidden", "true");
+
+      button.append(ordinal, title, meta, arrow);
+      button.addEventListener("click", () => startQuiz(quizId));
+      grid.append(button);
+    });
+
+    const footer = createElement("footer", "home-footer", "Pytania są losowane od nowa w każdej sesji.");
+    app.append(hero, grid, footer);
+  }
+
+  function renderTopBar(quiz) {
+    const topBar = createElement("div", "topbar");
+    const back = createElement("button", "back-link", "← Wróć do listy ustaw");
+    back.type = "button";
+    back.addEventListener("click", () => showHome());
+    topBar.append(back);
+    return topBar;
+  }
+
+  function showLoading(quiz) {
+    clearApp();
+    app.className = "app-shell quiz-shell";
+    app.append(renderTopBar(quiz));
+
+    const panel = createElement("section", "quiz-panel status-panel");
+    panel.setAttribute("aria-live", "polite");
+    const spinner = createElement("span", "spinner");
+    spinner.setAttribute("aria-hidden", "true");
+    panel.append(
+      spinner,
+      createElement("h1", "status-title", quiz.title),
+      createElement("p", "status-message", "Ładowanie pytań...")
+    );
+    app.append(panel);
+  }
+
+  function showError(quiz, error) {
+    console.error("Nie udało się uruchomić testu:", error);
+    clearApp();
+    app.className = "app-shell quiz-shell";
+    app.append(renderTopBar(quiz));
+
+    const panel = createElement("section", "quiz-panel status-panel");
+    panel.setAttribute("role", "alert");
+    const icon = createElement("div", "status-icon error-icon", "!");
+    icon.setAttribute("aria-hidden", "true");
+    const title = createElement("h1", "status-title", "Nie udało się wczytać pytań.");
+    const message = createElement("p", "status-message", "Sprawdź, czy plik z pytaniami istnieje i ma poprawny format.");
+    const back = createElement("button", "primary-button", "Wróć do listy ustaw");
+    back.type = "button";
+    back.addEventListener("click", () => showHome());
+    panel.append(icon, title, message, back);
+    app.append(panel);
+  }
+
+  async function loadQuestions(file) {
+    const response = await fetch(file, { cache: "no-cache" });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status} podczas pobierania ${file}`);
+    }
+    const text = await response.text();
+    const { questions, warnings } = window.CSVUtils.parseQuestionsCSV(text);
+    warnings.forEach(warning => console.warn(warning));
+    return questions;
+  }
+
+  async function startQuiz(quizId, { updateHistory = true } = {}) {
+    const quiz = QUIZZES[quizId];
+    if (!quiz) {
+      showHome({ updateHistory: false });
+      if (updateHistory) updateURL(null, { replace: true });
+      return;
+    }
+
+    state.quizId = quizId;
+    setDocumentTitle(quiz.shortTitle);
+    if (updateHistory) updateURL(quizId);
+    showLoading(quiz);
+
+    try {
+      let questions = cache.get(quizId);
+      if (!questions) {
+        questions = await loadQuestions(quiz.file);
+        cache.set(quizId, questions);
+      }
+
+      // Guard against a fast navigation change while fetch was in flight.
+      if (state.quizId !== quizId) return;
+
+      state.sourceQuestions = questions;
+      state.questions = prepareQuizSession(questions);
+      resetSessionCounters();
+      renderQuestion();
+    } catch (error) {
+      if (state.quizId === quizId) showError(quiz, error);
+    }
+  }
+
+  function renderQuestion() {
+    const quiz = QUIZZES[state.quizId];
+    const question = state.questions[state.currentQuestionIndex];
+    if (!quiz || !question) {
+      showResults();
+      return;
+    }
+
+    clearApp();
+    app.className = "app-shell quiz-shell";
+    app.append(renderTopBar(quiz));
+
+    const panel = createElement("section", "quiz-panel");
+    const header = createElement("header", "quiz-header");
+    const lawTitle = createElement("p", "law-title", quiz.title);
+
+    const progressRow = createElement("div", "progress-row");
+    const counter = createElement(
+      "span",
+      "question-counter",
+      `Pytanie ${state.currentQuestionIndex + 1} z ${state.questions.length}`
+    );
+    const percent = Math.round(((state.currentQuestionIndex + 1) / state.questions.length) * 100);
+    const percentText = createElement("span", "progress-percent", `${percent}%`);
+    progressRow.append(counter, percentText);
+
+    const progress = createElement("div", "progress-track");
+    progress.setAttribute("role", "progressbar");
+    progress.setAttribute("aria-valuemin", "0");
+    progress.setAttribute("aria-valuemax", "100");
+    progress.setAttribute("aria-valuenow", String(percent));
+    progress.setAttribute("aria-label", "Postęp testu");
+    const progressFill = createElement("div", "progress-fill");
+    progressFill.style.width = `${percent}%`;
+    progress.append(progressFill);
+
+    header.append(lawTitle, progressRow, progress);
+
+    const body = createElement("div", "question-body");
+    const questionText = createElement("h1", "question-text", question.question);
+    questionText.id = "question-text";
+
+    const answers = createElement("div", "answers");
+    answers.setAttribute("role", "group");
+    answers.setAttribute("aria-labelledby", "question-text");
+
+    question.answers.forEach((answer, index) => {
+      const button = createElement("button", "answer-button");
+      button.type = "button";
+      button.dataset.answerIndex = String(index);
+      button.setAttribute("aria-label", `${LETTERS[index]}. ${answer.text}`);
+
+      const letter = createElement("span", "answer-letter", LETTERS[index]);
+      letter.setAttribute("aria-hidden", "true");
+      const text = createElement("span", "answer-text", answer.text);
+      const marker = createElement("span", "answer-marker");
+      marker.setAttribute("aria-hidden", "true");
+      button.append(letter, text, marker);
+      button.addEventListener("click", () => handleAnswer(index));
+      answers.append(button);
+    });
+
+    const feedback = createElement("section", "feedback");
+    feedback.id = "feedback";
+    feedback.setAttribute("aria-live", "polite");
+    feedback.hidden = true;
+
+    const actions = createElement("div", "question-actions");
+    const next = createElement("button", "primary-button next-button", "Dalej →");
+    next.type = "button";
+    next.id = "next-button";
+    next.hidden = true;
+    next.addEventListener("click", nextQuestion);
+    actions.append(next);
+
+    body.append(questionText, answers, feedback, actions);
+    panel.append(header, body);
+    app.append(panel);
+
+    const firstAnswer = answers.querySelector(".answer-button");
+    if (firstAnswer) firstAnswer.focus({ preventScroll: true });
+  }
+
+  function handleAnswer(index) {
+    if (state.answered) return;
+
+    const question = state.questions[state.currentQuestionIndex];
+    const selected = question.answers[index];
+    if (!selected) return;
+
+    state.answered = true;
+    state.selectedAnswerIndex = index;
+
+    const correctIndex = question.answers.findIndex(answer => answer.isCorrect);
+    const isCorrect = selected.isCorrect;
+
+    if (isCorrect) {
+      state.correctAnswers += 1;
+    } else {
+      state.incorrectAnswers += 1;
+    }
+
+    state.answers.push({
+      questionIndex: state.currentQuestionIndex,
+      selectedIndex: index,
+      correctIndex,
+      isCorrect
+    });
+
+    renderAnswerResult(index, correctIndex, isCorrect);
+  }
+
+  function renderAnswerResult(selectedIndex, correctIndex, isCorrect) {
+    const question = state.questions[state.currentQuestionIndex];
+    const buttons = [...document.querySelectorAll(".answer-button")];
+
+    buttons.forEach((button, index) => {
+      button.disabled = true;
+      const marker = button.querySelector(".answer-marker");
+      if (index === correctIndex) {
+        button.classList.add("is-correct");
+        marker.textContent = "✓";
+      }
+      if (index === selectedIndex && !isCorrect) {
+        button.classList.add("is-incorrect");
+        marker.textContent = "✕";
+      }
+    });
+
+    const feedback = document.getElementById("feedback");
+    feedback.replaceChildren();
+    feedback.hidden = false;
+    feedback.className = `feedback ${isCorrect ? "feedback-correct" : "feedback-incorrect"}`;
+
+    const heading = createElement(
+      "h2",
+      "feedback-heading",
+      isCorrect ? "✓ Poprawna odpowiedź" : "✕ Niepoprawna odpowiedź"
+    );
+    feedback.append(heading);
+
+    if (!isCorrect) {
+      const correctBlock = createElement("div", "correct-answer-block");
+      correctBlock.append(
+        createElement("span", "feedback-label", "Poprawna odpowiedź:"),
+        createElement("p", "correct-answer-text", `${LETTERS[correctIndex]}. ${question.answers[correctIndex].text}`)
+      );
+      feedback.append(correctBlock);
+    }
+
+    const explanation = createElement("div", "explanation-block");
+    explanation.append(
+      createElement("span", "feedback-label", "Wyjaśnienie"),
+      createElement("p", "explanation-text", question.explanation || "Brak dodatkowego wyjaśnienia.")
+    );
+    feedback.append(explanation);
+
+    const next = document.getElementById("next-button");
+    next.hidden = false;
+    if (state.currentQuestionIndex === state.questions.length - 1) {
+      next.textContent = "Zobacz wynik →";
+    }
+    next.focus({ preventScroll: true });
+  }
+
+  function nextQuestion() {
+    if (!state.answered) return;
+
+    if (state.currentQuestionIndex >= state.questions.length - 1) {
+      showResults();
+      return;
+    }
+
+    state.currentQuestionIndex += 1;
+    state.answered = false;
+    state.selectedAnswerIndex = null;
+    renderQuestion();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function showResults() {
+    const quiz = QUIZZES[state.quizId];
+    if (!quiz || state.questions.length === 0) {
+      showHome();
+      return;
+    }
+
+    const total = state.questions.length;
+    const percentage = Math.round((state.correctAnswers / total) * 100);
+    saveBestScore(state.quizId, percentage);
+
+    clearApp();
+    app.className = "app-shell quiz-shell";
+    app.append(renderTopBar(quiz));
+
+    const panel = createElement("section", "quiz-panel results-panel");
+    const kicker = createElement("p", "eyebrow", quiz.shortTitle);
+    const title = createElement("h1", "results-title", "Test ukończony");
+    const score = createElement("div", "score", `${state.correctAnswers} / ${total}`);
+    score.setAttribute("aria-label", `${state.correctAnswers} poprawnych odpowiedzi na ${total}`);
+    const percentageText = createElement("p", "results-percentage", `Wynik: ${percentage}%`);
+
+    const stats = createElement("div", "results-stats");
+    const correctStat = createElement("div", "stat-card");
+    correctStat.append(
+      createElement("span", "stat-value", String(state.correctAnswers)),
+      createElement("span", "stat-label", "Poprawne odpowiedzi")
+    );
+    const incorrectStat = createElement("div", "stat-card");
+    incorrectStat.append(
+      createElement("span", "stat-value", String(state.incorrectAnswers)),
+      createElement("span", "stat-label", "Błędne odpowiedzi")
+    );
+    stats.append(correctStat, incorrectStat);
+
+    const actions = createElement("div", "results-actions");
+    const restart = createElement("button", "primary-button", "Rozwiąż ponownie");
+    restart.type = "button";
+    restart.addEventListener("click", restartQuiz);
+    const home = createElement("button", "secondary-button", "Wróć do listy ustaw");
+    home.type = "button";
+    home.addEventListener("click", () => showHome());
+    actions.append(restart, home);
+
+    panel.append(kicker, title, score, percentageText, stats, actions);
+    app.append(panel);
+    restart.focus({ preventScroll: true });
+  }
+
+  function restartQuiz() {
+    if (!state.quizId || state.sourceQuestions.length === 0) return;
+    state.questions = prepareQuizSession(state.sourceQuestions);
+    resetSessionCounters();
+    renderQuestion();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function handleKeyboard(event) {
+    if (!state.quizId || state.questions.length === 0) return;
+
+    const target = event.target;
+    const isFormControl = target instanceof HTMLButtonElement;
+
+    if (!state.answered) {
+      const key = event.key.toLowerCase();
+      const keyMap = { a: 0, "1": 0, b: 1, "2": 1, c: 2, "3": 2, d: 3, "4": 3 };
+      if (Object.prototype.hasOwnProperty.call(keyMap, key)) {
+        event.preventDefault();
+        handleAnswer(keyMap[key]);
+      }
+      return;
+    }
+
+    if (event.key === "Enter" && !isFormControl) {
+      event.preventDefault();
+      nextQuestion();
+    }
+  }
+
+  function initializeFromURL() {
+    const params = new URLSearchParams(window.location.search);
+    const quizId = params.get("quiz");
+    if (quizId && QUIZZES[quizId]) {
+      startQuiz(quizId, { updateHistory: false });
+    } else {
+      if (quizId) updateURL(null, { replace: true });
+      showHome({ updateHistory: false });
+    }
+  }
+
+  window.addEventListener("popstate", initializeFromURL);
+  document.addEventListener("keydown", handleKeyboard);
+  initializeFromURL();
+}());
