@@ -2,6 +2,22 @@
 
 Statyczna aplikacja webowa do nauki przepisów prawnych poprzez testy jednokrotnego wyboru.
 
+Postęp nauki oraz niedokończone sesje są zapisywane lokalnie w przeglądarce. Po ponownym otwarciu test jest kontynuowany od ostatniego pytania. Pytanie, na które udzielono poprawnej odpowiedzi w dwóch kolejnych ukończonych sesjach, nie pojawia się w następnych testach. Przycisk „Przywróć wszystkie pytania” na stronie głównej zeruje ten postęp i usuwa niedokończone sesje.
+
+Wersja opublikowana: [https://domel.github.io/justyna/](https://domel.github.io/justyna/)
+
+## Instalacja na telefonie
+
+Aplikacja działa jako PWA i po pierwszym pełnym wczytaniu może być używana bez połączenia z internetem.
+
+Na Androidzie:
+
+1. Otwórz opublikowaną stronę w Chrome lub Firefoksie.
+2. Otwórz menu przeglądarki.
+3. Wybierz „Zainstaluj aplikację” albo „Dodaj do ekranu głównego” — nazwa polecenia zależy od przeglądarki.
+
+Zainstalowana aplikacja ma własną ikonę i uruchamia się w osobnym oknie. Chrome zapewnia pełny tryb instalacji PWA; Firefox obsługuje dodanie aplikacji do ekranu głównego i jej działanie offline.
+
 ## Uruchomienie lokalne
 
 Aplikacja wczytuje pliki CSV przez `fetch()`, dlatego należy uruchomić ją przez lokalny serwer HTTP, np.:
@@ -29,4 +45,10 @@ http://localhost:8000/index.html?quiz=przyroda
 - HTML5
 - CSS3
 - vanilla JavaScript
+- Web App Manifest
+- Service Worker i Cache API
 - brak backendu i procesu budowania
+
+## Aktualizowanie wersji offline
+
+Plik `sw.js` zapisuje pliki aplikacji i zestawy pytań w pamięci podręcznej. Po zmianie zasobów umieszczonych w tablicy `APP_FILES` należy zwiększyć wersję w stałej `CACHE_NAME`, np. z `testy-z-ustaw-v1` na `testy-z-ustaw-v2`. Dzięki temu zainstalowane aplikacje usuną poprzedni cache i pobiorą aktualną wersję.
