@@ -281,6 +281,50 @@
     startQuiz(quizId, { updateHistory: false });
   }
 
+  function removeCurrentQuestion() {
+    const question = state.questions[state.currentQuestionIndex];
+    if (!state.quizId || !question) return;
+
+    const confirmed = window.confirm(
+      "Czy na pewno usunąć to pytanie z puli? Można je później przywrócić przyciskiem „Przywróć wszystkie pytania”."
+    );
+    if (!confirmed) return;
+
+    const quizProgress = { ...getQuizProgress(state.quizId) };
+    quizProgress[getQuestionId(question)] = 2;
+    learningProgress[state.quizId] = quizProgress;
+    saveLearningProgress();
+
+    const removedIndex = state.currentQuestionIndex;
+    const removedAnswer = state.answers.find(answer => answer.questionIndex === removedIndex);
+    if (removedAnswer) {
+      if (removedAnswer.isCorrect) state.correctAnswers -= 1;
+      else state.incorrectAnswers -= 1;
+    }
+    state.answers = state.answers
+      .filter(answer => answer.questionIndex !== removedIndex)
+      .map(answer => ({
+        ...answer,
+        questionIndex: answer.questionIndex > removedIndex
+          ? answer.questionIndex - 1
+          : answer.questionIndex
+      }));
+    state.questions.splice(removedIndex, 1);
+    state.answered = false;
+    state.selectedAnswerIndex = null;
+
+    if (state.questions.length === 0) {
+      clearSavedSession(state.quizId);
+      showMastered(QUIZZES[state.quizId]);
+    } else if (state.currentQuestionIndex >= state.questions.length) {
+      showResults();
+    } else {
+      saveCurrentSession();
+      renderQuestion();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }
+
   function setDocumentTitle(suffix) {
     document.title = suffix ? `${suffix} — Testy z ustaw` : "Testy z ustaw";
   }
@@ -324,9 +368,14 @@
     if (!area || !button) return;
 
     const installAPI = window.PWAInstall;
-    const installed = Boolean(installAPI && installAPI.isStandalone());
-    area.hidden = installed;
-    button.dataset.installReady = String(Boolean(installAPI && installAPI.canInstall()));
+    const canShow = Boolean(
+      installAPI
+      && installAPI.isAndroidDevice()
+      && !installAPI.isStandalone()
+      && installAPI.canInstall()
+    );
+    area.hidden = !canShow;
+    button.dataset.installReady = String(canShow);
   }
 
   async function handleInstallApp() {
@@ -538,11 +587,11 @@
     panel.setAttribute("aria-live", "polite");
     const icon = createElement("div", "status-icon success-icon", "✓");
     icon.setAttribute("aria-hidden", "true");
-    const title = createElement("h1", "status-title", "Wszystkie pytania opanowane");
+    const title = createElement("h1", "status-title", "Brak pytań w puli");
     const message = createElement(
       "p",
       "status-message",
-      "Każde pytanie otrzymało poprawną odpowiedź w dwóch kolejnych sesjach. Możesz przywrócić pełną pulę i zacząć od nowa."
+      "Wszystkie pytania zostały opanowane lub usunięte z puli. Możesz przywrócić pełną pulę i zacząć od nowa."
     );
     const reset = createElement("button", "primary-button", "Przywróć pytania z tej ustawy");
     reset.type = "button";
@@ -620,12 +669,15 @@
     feedback.hidden = true;
 
     const actions = createElement("div", "question-actions");
+    const remove = createElement("button", "remove-question-button", "Usuń pytanie");
+    remove.type = "button";
+    remove.addEventListener("click", removeCurrentQuestion);
     const next = createElement("button", "primary-button next-button", "Dalej →");
     next.type = "button";
     next.id = "next-button";
     next.hidden = true;
     next.addEventListener("click", nextQuestion);
-    actions.append(next);
+    actions.append(remove, next);
 
     body.append(questionText, answers, feedback, actions);
     panel.append(header, body);

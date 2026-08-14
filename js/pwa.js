@@ -8,9 +8,18 @@
       || window.navigator.standalone === true;
   }
 
+  function isAndroidDevice() {
+    const platform = navigator.userAgentData && navigator.userAgentData.platform;
+    return platform === "Android" || /Android/i.test(navigator.userAgent);
+  }
+
   function notifyInstallAvailability() {
     window.dispatchEvent(new CustomEvent("pwa-install-availability-changed", {
-      detail: { canInstall: Boolean(installPrompt), isStandalone: isStandalone() }
+      detail: {
+        canInstall: Boolean(installPrompt),
+        isAndroid: isAndroidDevice(),
+        isStandalone: isStandalone()
+      }
     }));
   }
 
@@ -29,6 +38,7 @@
 
   window.PWAInstall = Object.freeze({
     canInstall: () => Boolean(installPrompt),
+    isAndroidDevice,
     isStandalone,
     install
   });
