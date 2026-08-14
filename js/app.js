@@ -318,6 +318,43 @@
     }
   }
 
+  function updateInstallControl() {
+    const area = document.getElementById("install-app-area");
+    const button = document.getElementById("install-app-button");
+    if (!area || !button) return;
+
+    const installAPI = window.PWAInstall;
+    const installed = Boolean(installAPI && installAPI.isStandalone());
+    area.hidden = installed;
+    button.dataset.installReady = String(Boolean(installAPI && installAPI.canInstall()));
+  }
+
+  async function handleInstallApp() {
+    const button = document.getElementById("install-app-button");
+    const status = document.getElementById("install-app-status");
+    if (!button || !status) return;
+
+    const installAPI = window.PWAInstall;
+    if (!installAPI) {
+      status.textContent = "W menu przeglądarki wybierz „Dodaj do ekranu głównego”.";
+      return;
+    }
+
+    button.disabled = true;
+    const result = await installAPI.install();
+    button.disabled = false;
+
+    if (result.outcome === "accepted") {
+      status.textContent = "Instalowanie aplikacji…";
+    } else if (result.outcome === "dismissed") {
+      status.textContent = "Instalacja została anulowana. Możesz spróbować ponownie później.";
+    } else {
+      status.textContent = "W menu przeglądarki wybierz „Zainstaluj aplikację” lub „Dodaj do ekranu głównego”.";
+    }
+
+    updateInstallControl();
+  }
+
   function showHome({ updateHistory = true } = {}) {
     state.quizId = null;
     state.sourceQuestions = [];
@@ -335,6 +372,18 @@
       createElement("h1", "home-title", "Testy z ustaw"),
       createElement("p", "home-subtitle", "Wybierz ustawę, z której chcesz rozwiązać test.")
     );
+
+    const installArea = createElement("div", "home-install-area");
+    installArea.id = "install-app-area";
+    const installButton = createElement("button", "install-app-button", "Zainstaluj aplikację");
+    installButton.id = "install-app-button";
+    installButton.type = "button";
+    installButton.addEventListener("click", handleInstallApp);
+    const installStatus = createElement("p", "install-app-status");
+    installStatus.id = "install-app-status";
+    installStatus.setAttribute("aria-live", "polite");
+    installArea.append(installButton, installStatus);
+    hero.append(installArea);
 
     const grid = createElement("section", "quiz-grid");
     grid.setAttribute("aria-label", "Dostępne testy");
@@ -372,6 +421,7 @@
     resetProgress.addEventListener("click", resetAllLearningProgress);
     footer.append(footerText, resetProgress);
     app.append(hero, grid, footer);
+    updateInstallControl();
   }
 
   function renderTopBar(quiz) {
@@ -790,6 +840,7 @@
   }
 
   window.addEventListener("popstate", initializeFromURL);
+  window.addEventListener("pwa-install-availability-changed", updateInstallControl);
   document.addEventListener("keydown", handleKeyboard);
   initializeFromURL();
 }());
