@@ -35,8 +35,12 @@
   });
 
   const LETTERS = ["A", "B", "C", "D"];
+  const LEARNING_PROGRESS_KEY = "ustawy-learning-progress-v1";
+  const SAVED_SESSIONS_KEY = "ustawy-saved-sessions-v1";
   const cache = new Map();
   const app = document.getElementById("app");
+  let learningProgress = loadLearningProgress();
+  let savedSessions = loadSavedSessions();
 
   const state = {
     quizId: null,
@@ -47,7 +51,9 @@
     incorrectAnswers: 0,
     answered: false,
     selectedAnswerIndex: null,
-    answers: []
+    answers: [],
+    sessionCompleted: false,
+    newlyMastered: 0
   };
 
   function createElement(tag, className, text) {
@@ -84,6 +90,195 @@
     state.answered = false;
     state.selectedAnswerIndex = null;
     state.answers = [];
+    state.sessionCompleted = false;
+    state.newlyMastered = 0;
+  }
+
+  function loadLearningProgress() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(LEARNING_PROGRESS_KEY) || "{}");
+      return saved && typeof saved === "object" && !Array.isArray(saved) ? saved : {};
+    } catch (_) {
+      return {};
+    }
+  }
+
+  function saveLearningProgress() {
+    try {
+      localStorage.setItem(LEARNING_PROGRESS_KEY, JSON.stringify(learningProgress));
+    } catch (_) {
+      // Progress still works until the page is closed when storage is unavailable.
+    }
+  }
+
+  function loadSavedSessions() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(SAVED_SESSIONS_KEY) || "{}");
+      return saved && typeof saved === "object" && !Array.isArray(saved) ? saved : {};
+    } catch (_) {
+      return {};
+    }
+  }
+
+  function persistSavedSessions() {
+    try {
+      localStorage.setItem(SAVED_SESSIONS_KEY, JSON.stringify(savedSessions));
+    } catch (_) {
+      // The current page still keeps the session when storage is unavailable.
+    }
+  }
+
+  function hasSavedSession(quizId) {
+    const session = savedSessions[quizId];
+    return Boolean(session && Array.isArray(session.questions) && session.questions.length > 0);
+  }
+
+  function saveCurrentSession() {
+    if (!state.quizId || state.questions.length === 0 || state.sessionCompleted) return;
+
+    savedSessions[state.quizId] = {
+      questions: state.questions,
+      currentQuestionIndex: state.currentQuestionIndex,
+      answered: state.answered,
+      selectedAnswerIndex: state.selectedAnswerIndex,
+      answers: state.answers,
+      savedAt: Date.now()
+    };
+    persistSavedSessions();
+  }
+
+  function clearSavedSession(quizId) {
+    if (!quizId || !Object.prototype.hasOwnProperty.call(savedSessions, quizId)) return;
+    delete savedSessions[quizId];
+    persistSavedSessions();
+  }
+
+  function restoreSavedSession(quizId, sourceQuestions) {
+    const saved = savedSessions[quizId];
+    if (!saved || !Array.isArray(saved.questions) || saved.questions.length === 0) return false;
+
+    const sourceQuestionIds = new Set(sourceQuestions.map(getQuestionId));
+    const questionsAreValid = saved.questions.every(question => (
+      question
+      && typeof question.question === "string"
+      && Array.isArray(question.answers)
+      && question.answers.length === LETTERS.length
+      && question.answers.filter(answer => answer && answer.isCorrect === true).length === 1
+      && sourceQuestionIds.has(getQuestionId(question))
+    ));
+    const indexIsValid = Number.isInteger(saved.currentQuestionIndex)
+      && saved.currentQuestionIndex >= 0
+      && saved.currentQuestionIndex < saved.questions.length;
+    const answersAreValid = Array.isArray(saved.answers)
+      && saved.answers.every(answer => (
+        answer
+        && Number.isInteger(answer.questionIndex)
+        && answer.questionIndex >= 0
+        && answer.questionIndex <= saved.currentQuestionIndex
+        && Number.isInteger(answer.selectedIndex)
+        && answer.selectedIndex >= 0
+        && answer.selectedIndex < LETTERS.length
+        && typeof answer.isCorrect === "boolean"
+      ));
+    const answeredIsValid = typeof saved.answered === "boolean"
+      && (!saved.answered || (
+        Number.isInteger(saved.selectedAnswerIndex)
+        && saved.selectedAnswerIndex >= 0
+        && saved.selectedAnswerIndex < LETTERS.length
+      ));
+
+    if (!questionsAreValid || !indexIsValid || !answersAreValid || !answeredIsValid) {
+      clearSavedSession(quizId);
+      return false;
+    }
+
+    const currentAnswer = saved.answers.find(answer => answer.questionIndex === saved.currentQuestionIndex);
+    if (saved.answered !== Boolean(currentAnswer)) {
+      clearSavedSession(quizId);
+      return false;
+    }
+
+    state.questions = saved.questions;
+    state.currentQuestionIndex = saved.currentQuestionIndex;
+    state.answers = saved.answers;
+    state.correctAnswers = saved.answers.filter(answer => answer.isCorrect).length;
+    state.incorrectAnswers = saved.answers.length - state.correctAnswers;
+    state.answered = saved.answered;
+    state.selectedAnswerIndex = saved.answered ? saved.selectedAnswerIndex : null;
+    state.sessionCompleted = false;
+    state.newlyMastered = 0;
+    return true;
+  }
+
+  function getQuestionId(question) {
+    const correctAnswer = question.answers.find(answer => answer.isCorrect);
+    return JSON.stringify([question.question, correctAnswer ? correctAnswer.text : ""]);
+  }
+
+  function getQuizProgress(quizId) {
+    const progress = learningProgress[quizId];
+    return progress && typeof progress === "object" && !Array.isArray(progress) ? progress : {};
+  }
+
+  function isQuestionMastered(quizId, question) {
+    return getQuizProgress(quizId)[getQuestionId(question)] >= 2;
+  }
+
+  function getAvailableQuestions(quizId, questions) {
+    return questions.filter(question => !isQuestionMastered(quizId, question));
+  }
+
+  function commitSessionProgress() {
+    if (state.sessionCompleted || !state.quizId) return;
+
+    const quizProgress = { ...getQuizProgress(state.quizId) };
+    let newlyMastered = 0;
+
+    state.answers.forEach(answer => {
+      const question = state.questions[answer.questionIndex];
+      if (!question) return;
+
+      const questionId = getQuestionId(question);
+      const previousStreak = Number(quizProgress[questionId]) || 0;
+      const nextStreak = answer.isCorrect ? Math.min(previousStreak + 1, 2) : 0;
+
+      if (nextStreak === 0) {
+        delete quizProgress[questionId];
+      } else {
+        quizProgress[questionId] = nextStreak;
+      }
+
+      if (previousStreak < 2 && nextStreak === 2) newlyMastered += 1;
+    });
+
+    learningProgress[state.quizId] = quizProgress;
+    saveLearningProgress();
+    state.sessionCompleted = true;
+    state.newlyMastered = newlyMastered;
+  }
+
+  function resetAllLearningProgress() {
+    const confirmed = window.confirm(
+      "Przywrócić wszystkie pytania, wyzerować serie poprawnych odpowiedzi i usunąć niedokończone sesje?"
+    );
+    if (!confirmed) return;
+
+    learningProgress = {};
+    savedSessions = {};
+    try {
+      localStorage.removeItem(LEARNING_PROGRESS_KEY);
+      localStorage.removeItem(SAVED_SESSIONS_KEY);
+    } catch (_) {
+      // The in-memory progress has already been cleared.
+    }
+    showHome({ updateHistory: false });
+  }
+
+  function resetQuizLearningProgress(quizId) {
+    delete learningProgress[quizId];
+    saveLearningProgress();
+    clearSavedSession(quizId);
+    startQuiz(quizId, { updateHistory: false });
   }
 
   function setDocumentTitle(suffix) {
@@ -148,13 +343,16 @@
       const button = createElement("button", "quiz-card");
       button.type = "button";
       button.dataset.quizId = quizId;
-      button.setAttribute("aria-label", `Rozpocznij test: ${quiz.title}`);
+      const canContinue = hasSavedSession(quizId);
+      button.setAttribute("aria-label", `${canContinue ? "Kontynuuj" : "Rozpocznij"} test: ${quiz.title}`);
 
       const ordinal = createElement("span", "quiz-card-number", String(index + 1).padStart(2, "0"));
       const title = createElement("span", "quiz-card-title", quiz.shortTitle);
       const meta = createElement("span", "quiz-card-meta");
       const best = getBestScore(quizId);
-      meta.textContent = best === null ? "Rozpocznij test" : `Najlepszy wynik: ${best}%`;
+      meta.textContent = canContinue
+        ? "Kontynuuj niedokończony test"
+        : (best === null ? "Rozpocznij test" : `Najlepszy wynik: ${best}%`);
       const arrow = createElement("span", "quiz-card-arrow", "→");
       arrow.setAttribute("aria-hidden", "true");
 
@@ -163,7 +361,16 @@
       grid.append(button);
     });
 
-    const footer = createElement("footer", "home-footer", "Pytania są losowane od nowa w każdej sesji.");
+    const footer = createElement("footer", "home-footer");
+    const footerText = createElement(
+      "p",
+      "home-footer-text",
+      "Pytania są losowane w każdej sesji. Po dwóch poprawnych odpowiedziach w kolejnych sesjach pytanie wypada z puli."
+    );
+    const resetProgress = createElement("button", "reset-progress-button", "Przywróć wszystkie pytania");
+    resetProgress.type = "button";
+    resetProgress.addEventListener("click", resetAllLearningProgress);
+    footer.append(footerText, resetProgress);
     app.append(hero, grid, footer);
   }
 
@@ -247,12 +454,52 @@
       if (state.quizId !== quizId) return;
 
       state.sourceQuestions = questions;
-      state.questions = prepareQuizSession(questions);
+      if (restoreSavedSession(quizId, questions)) {
+        renderQuestion();
+        if (state.answered) {
+          const currentAnswer = state.answers.find(answer => answer.questionIndex === state.currentQuestionIndex);
+          const currentQuestion = state.questions[state.currentQuestionIndex];
+          const correctIndex = currentQuestion.answers.findIndex(answer => answer.isCorrect);
+          renderAnswerResult(state.selectedAnswerIndex, correctIndex, currentAnswer.isCorrect);
+        }
+        return;
+      }
+
+      const availableQuestions = getAvailableQuestions(quizId, questions);
+      state.questions = prepareQuizSession(availableQuestions);
       resetSessionCounters();
-      renderQuestion();
+      if (state.questions.length === 0) {
+        showMastered(quiz);
+      } else {
+        saveCurrentSession();
+        renderQuestion();
+      }
     } catch (error) {
       if (state.quizId === quizId) showError(quiz, error);
     }
+  }
+
+  function showMastered(quiz) {
+    clearApp();
+    app.className = "app-shell quiz-shell";
+    app.append(renderTopBar(quiz));
+
+    const panel = createElement("section", "quiz-panel status-panel");
+    panel.setAttribute("aria-live", "polite");
+    const icon = createElement("div", "status-icon success-icon", "✓");
+    icon.setAttribute("aria-hidden", "true");
+    const title = createElement("h1", "status-title", "Wszystkie pytania opanowane");
+    const message = createElement(
+      "p",
+      "status-message",
+      "Każde pytanie otrzymało poprawną odpowiedź w dwóch kolejnych sesjach. Możesz przywrócić pełną pulę i zacząć od nowa."
+    );
+    const reset = createElement("button", "primary-button", "Przywróć pytania z tej ustawy");
+    reset.type = "button";
+    reset.addEventListener("click", () => resetQuizLearningProgress(state.quizId));
+    panel.append(icon, title, message, reset);
+    app.append(panel);
+    reset.focus({ preventScroll: true });
   }
 
   function renderQuestion() {
@@ -364,6 +611,7 @@
       isCorrect
     });
 
+    saveCurrentSession();
     renderAnswerResult(index, correctIndex, isCorrect);
   }
 
@@ -431,6 +679,7 @@
     state.currentQuestionIndex += 1;
     state.answered = false;
     state.selectedAnswerIndex = null;
+    saveCurrentSession();
     renderQuestion();
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -445,6 +694,8 @@
     const total = state.questions.length;
     const percentage = Math.round((state.correctAnswers / total) * 100);
     saveBestScore(state.quizId, percentage);
+    commitSessionProgress();
+    clearSavedSession(state.quizId);
 
     clearApp();
     app.className = "app-shell quiz-shell";
@@ -470,6 +721,13 @@
     );
     stats.append(correctStat, incorrectStat);
 
+    const learningSummary = createElement("p", "learning-summary");
+    if (state.newlyMastered > 0) {
+      learningSummary.textContent = `Pytania, które wypadną z puli w kolejnej sesji: ${state.newlyMastered}.`;
+    } else {
+      learningSummary.textContent = "Pytanie wypada z puli po poprawnej odpowiedzi w dwóch kolejnych sesjach.";
+    }
+
     const actions = createElement("div", "results-actions");
     const restart = createElement("button", "primary-button", "Rozwiąż ponownie");
     restart.type = "button";
@@ -479,16 +737,22 @@
     home.addEventListener("click", () => showHome());
     actions.append(restart, home);
 
-    panel.append(kicker, title, score, percentageText, stats, actions);
+    panel.append(kicker, title, score, percentageText, stats, learningSummary, actions);
     app.append(panel);
     restart.focus({ preventScroll: true });
   }
 
   function restartQuiz() {
     if (!state.quizId || state.sourceQuestions.length === 0) return;
-    state.questions = prepareQuizSession(state.sourceQuestions);
+    const availableQuestions = getAvailableQuestions(state.quizId, state.sourceQuestions);
+    state.questions = prepareQuizSession(availableQuestions);
     resetSessionCounters();
-    renderQuestion();
+    if (state.questions.length === 0) {
+      showMastered(QUIZZES[state.quizId]);
+    } else {
+      saveCurrentSession();
+      renderQuestion();
+    }
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
