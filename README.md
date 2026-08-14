@@ -13,8 +13,8 @@ Aplikacja działa jako PWA i po pierwszym pełnym wczytaniu może być używana 
 Na Androidzie:
 
 1. Otwórz opublikowaną stronę w Chrome lub Firefoksie.
-2. Otwórz menu przeglądarki.
-3. Wybierz „Zainstaluj aplikację” albo „Dodaj do ekranu głównego” — nazwa polecenia zależy od przeglądarki.
+2. Naciśnij „Zainstaluj aplikację” na stronie głównej.
+3. Potwierdź instalację. Jeżeli przeglądarka nie wyświetli okna instalacji, wybierz w jej menu „Zainstaluj aplikację” albo „Dodaj do ekranu głównego”.
 
 Zainstalowana aplikacja ma własną ikonę i uruchamia się w osobnym oknie. Chrome zapewnia pełny tryb instalacji PWA; Firefox obsługuje dodanie aplikacji do ekranu głównego i jej działanie offline.
 
@@ -51,4 +51,4 @@ http://localhost:8000/index.html?quiz=przyroda
 
 ## Aktualizowanie wersji offline
 
-Plik `sw.js` zapisuje pliki aplikacji i zestawy pytań w pamięci podręcznej. Po zmianie zasobów umieszczonych w tablicy `APP_FILES` należy zwiększyć wersję w stałej `CACHE_NAME`, np. z `testy-z-ustaw-v1` na `testy-z-ustaw-v2`. Dzięki temu zainstalowane aplikacje usuną poprzedni cache i pobiorą aktualną wersję.
+Plik `sw.js` zapisuje pliki aplikacji i zestawy pytań w pamięci podręcznej. Po zmianie zasobów umieszczonych w tablicy `APP_FILES` należy zwiększyć wersję w stałej `CACHE_NAME`, np. z `testy-z-ustaw-v2` na `testy-z-ustaw-v3`. Dzięki temu zainstalowane aplikacje usuną poprzedni cache i pobiorą aktualną wersję.
