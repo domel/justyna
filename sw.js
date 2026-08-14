@@ -1,6 +1,6 @@
 "use strict";
 
-const CACHE_NAME = "testy-z-ustaw-v4";
+const CACHE_NAME = "testy-z-ustaw-v5";
 const APP_FILES = [
   "./",
   "./index.html",
@@ -12,6 +12,17 @@ const APP_FILES = [
   "./icons/icon-192.png",
   "./icons/icon-512.png",
   "./icons/apple-touch-icon.png",
+  "./materialy-do-nauki/Najwazniejsze.png",
+  "./materialy-do-nauki/Kodeks postępowania.png",
+  "./materialy-do-nauki/kpo-praktyka.png",
+  "./materialy-do-nauki/Ustawa o pracownikach samorzadowych.png",
+  "./materialy-do-nauki/Ustawa o samorzadzie.png",
+  "./materialy-do-nauki/Ustawa o lasach.png",
+  "./materialy-do-nauki/Ustawa o ochronie przyrody.png",
+  "./materialy-do-nauki/Formy ochrony przyrody.png",
+  "./materialy-do-nauki/Ustawa OOŚ.png",
+  "./materialy-do-nauki/DŚU a OOŚ.png",
+  "./materialy-do-nauki/KIP a raport OOŚ.png",
   "./data/pytania_Kodeks_postepowania_administracyjnego_KPA.csv",
   "./data/pytania_ustawa_informacja_srodowisko_OOS.csv",
   "./data/pytania_ustawa_o_lasach.csv",

@@ -34,6 +34,20 @@
     }
   });
 
+  const STUDY_MATERIALS = Object.freeze([
+    { id: "najwazniejsze", title: "Najważniejsze zagadnienia", file: "materialy-do-nauki/Najwazniejsze.png" },
+    { id: "kodeks-postepowania", title: "Kodeks postępowania administracyjnego", file: "materialy-do-nauki/Kodeks postępowania.png" },
+    { id: "kpa-praktyka", title: "KPA w praktyce", file: "materialy-do-nauki/kpo-praktyka.png" },
+    { id: "pracownicy-samorzadowi", title: "Ustawa o pracownikach samorządowych", file: "materialy-do-nauki/Ustawa o pracownikach samorzadowych.png" },
+    { id: "samorzad-gminny", title: "Ustawa o samorządzie gminnym", file: "materialy-do-nauki/Ustawa o samorzadzie.png" },
+    { id: "lasy", title: "Ustawa o lasach", file: "materialy-do-nauki/Ustawa o lasach.png" },
+    { id: "ochrona-przyrody", title: "Ustawa o ochronie przyrody", file: "materialy-do-nauki/Ustawa o ochronie przyrody.png" },
+    { id: "formy-ochrony-przyrody", title: "Formy ochrony przyrody", file: "materialy-do-nauki/Formy ochrony przyrody.png" },
+    { id: "oos", title: "Ustawa OOŚ", file: "materialy-do-nauki/Ustawa OOŚ.png" },
+    { id: "dsu-oos", title: "DŚU a OOŚ", file: "materialy-do-nauki/DŚU a OOŚ.png" },
+    { id: "kip-raport-oos", title: "KIP a raport OOŚ", file: "materialy-do-nauki/KIP a raport OOŚ.png" }
+  ]);
+
   const LETTERS = ["A", "B", "C", "D"];
   const LEARNING_PROGRESS_KEY = "ustawy-learning-progress-v1";
   const SAVED_SESSIONS_KEY = "ustawy-saved-sessions-v1";
@@ -329,12 +343,16 @@
     document.title = suffix ? `${suffix} — Testy z ustaw` : "Testy z ustaw";
   }
 
-  function updateURL(quizId, { replace = false } = {}) {
+  function updateURL(quizId, { replace = false, view = null, materialId = null } = {}) {
     const url = new URL(window.location.href);
+    url.searchParams.delete("quiz");
+    url.searchParams.delete("view");
+    url.searchParams.delete("material");
     if (quizId) {
       url.searchParams.set("quiz", quizId);
-    } else {
-      url.searchParams.delete("quiz");
+    } else if (view) {
+      url.searchParams.set("view", view);
+      if (materialId) url.searchParams.set("material", materialId);
     }
     const method = replace ? "replaceState" : "pushState";
     window.history[method]({}, "", url);
@@ -437,6 +455,24 @@
     const grid = createElement("section", "quiz-grid");
     grid.setAttribute("aria-label", "Dostępne testy");
 
+    const studyEntry = createElement("section", "study-entry");
+    const studyButton = createElement("button", "study-entry-card");
+    studyButton.type = "button";
+    studyButton.setAttribute("aria-label", `Otwórz sekcję Nauka: ${STUDY_MATERIALS.length} materiałów`);
+    const studyIcon = createElement("span", "study-entry-icon", "▤");
+    studyIcon.setAttribute("aria-hidden", "true");
+    const studyCopy = createElement("span", "study-entry-copy");
+    studyCopy.append(
+      createElement("span", "study-entry-label", "NAUKA"),
+      createElement("span", "study-entry-title", "Materiały do nauki"),
+      createElement("span", "study-entry-meta", `${STUDY_MATERIALS.length} czytelnych infografik dostępnych również offline`)
+    );
+    const studyArrow = createElement("span", "study-entry-arrow", "→");
+    studyArrow.setAttribute("aria-hidden", "true");
+    studyButton.append(studyIcon, studyCopy, studyArrow);
+    studyButton.addEventListener("click", () => showStudyMaterials());
+    studyEntry.append(studyButton);
+
     Object.entries(QUIZZES).forEach(([quizId, quiz], index) => {
       const button = createElement("button", "quiz-card");
       button.type = "button";
@@ -469,8 +505,107 @@
     resetProgress.type = "button";
     resetProgress.addEventListener("click", resetAllLearningProgress);
     footer.append(footerText, resetProgress);
-    app.append(hero, grid, footer);
+    app.append(hero, studyEntry, grid, footer);
     updateInstallControl();
+  }
+
+  function showStudyMaterials({ updateHistory = true } = {}) {
+    state.quizId = null;
+    state.sourceQuestions = [];
+    state.questions = [];
+    resetSessionCounters();
+    setDocumentTitle("Nauka");
+    if (updateHistory) updateURL(null, { view: "nauka" });
+
+    clearApp();
+    app.className = "app-shell study-shell";
+
+    const topBar = createElement("div", "topbar");
+    const back = createElement("button", "back-link", "← Wróć do strony głównej");
+    back.type = "button";
+    back.addEventListener("click", () => showHome());
+    topBar.append(back);
+
+    const header = createElement("header", "study-header");
+    header.append(
+      createElement("p", "eyebrow", "MATERIAŁY DO NAUKI"),
+      createElement("h1", "study-title", "Nauka"),
+      createElement("p", "study-subtitle", "Wybierz infografikę. Otwarty materiał możesz powiększać, aby wygodnie odczytać szczegóły.")
+    );
+
+    const gallery = createElement("section", "study-grid");
+    gallery.setAttribute("aria-label", "Infografiki do nauki");
+    STUDY_MATERIALS.forEach((material, index) => {
+      const card = createElement("button", "study-card");
+      card.type = "button";
+      card.dataset.materialId = material.id;
+      card.setAttribute("aria-label", `Otwórz materiał: ${material.title}`);
+
+      const preview = createElement("span", "study-card-preview");
+      const image = document.createElement("img");
+      image.src = material.file;
+      image.alt = "";
+      image.loading = "lazy";
+      image.decoding = "async";
+      preview.append(image);
+
+      const copy = createElement("span", "study-card-copy");
+      copy.append(
+        createElement("span", "study-card-number", String(index + 1).padStart(2, "0")),
+        createElement("span", "study-card-title", material.title),
+        createElement("span", "study-card-action", "Otwórz materiał →")
+      );
+      card.append(preview, copy);
+      card.addEventListener("click", () => showStudyMaterial(material.id));
+      gallery.append(card);
+    });
+
+    app.append(topBar, header, gallery);
+    const firstCard = gallery.querySelector(".study-card");
+    if (firstCard) firstCard.focus({ preventScroll: true });
+  }
+
+  function showStudyMaterial(materialId, { updateHistory = true } = {}) {
+    const material = STUDY_MATERIALS.find(item => item.id === materialId);
+    if (!material) {
+      showStudyMaterials({ updateHistory });
+      return;
+    }
+
+    state.quizId = null;
+    setDocumentTitle(material.title);
+    if (updateHistory) updateURL(null, { view: "nauka", materialId });
+
+    clearApp();
+    app.className = "app-shell study-viewer-shell";
+
+    const topBar = createElement("div", "topbar study-viewer-topbar");
+    const back = createElement("button", "back-link", "← Wróć do materiałów");
+    back.type = "button";
+    back.addEventListener("click", () => showStudyMaterials());
+    topBar.append(back);
+
+    const panel = createElement("article", "study-viewer");
+    const header = createElement("header", "study-viewer-header");
+    header.append(
+      createElement("p", "eyebrow", "NAUKA"),
+      createElement("h1", "study-viewer-title", material.title),
+      createElement("p", "study-viewer-hint", "Na telefonie użyj gestu powiększania, aby odczytać drobny tekst.")
+    );
+
+    const image = document.createElement("img");
+    image.className = "study-viewer-image";
+    image.src = material.file;
+    image.alt = `Infografika: ${material.title}`;
+    image.decoding = "async";
+
+    const fullSize = createElement("a", "study-full-size-link", "Otwórz obraz w pełnym rozmiarze");
+    fullSize.href = material.file;
+    fullSize.target = "_blank";
+    fullSize.rel = "noopener";
+    panel.append(header, image, fullSize);
+    app.append(topBar, panel);
+    window.scrollTo({ top: 0 });
   }
 
   function renderTopBar(quiz) {
@@ -883,10 +1018,18 @@
   function initializeFromURL() {
     const params = new URLSearchParams(window.location.search);
     const quizId = params.get("quiz");
-    if (quizId && QUIZZES[quizId]) {
+    const view = params.get("view");
+    const materialId = params.get("material");
+    const materialExists = STUDY_MATERIALS.some(material => material.id === materialId);
+    if (view === "nauka" && materialId && materialExists) {
+      showStudyMaterial(materialId, { updateHistory: false });
+    } else if (view === "nauka") {
+      if (materialId) updateURL(null, { replace: true, view: "nauka" });
+      showStudyMaterials({ updateHistory: false });
+    } else if (quizId && QUIZZES[quizId]) {
       startQuiz(quizId, { updateHistory: false });
     } else {
-      if (quizId) updateURL(null, { replace: true });
+      if (quizId || view || materialId) updateURL(null, { replace: true });
       showHome({ updateHistory: false });
     }
   }

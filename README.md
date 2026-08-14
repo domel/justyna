@@ -1,6 +1,6 @@
 # Testy z ustaw
 
-Statyczna aplikacja webowa do nauki przepisów prawnych poprzez testy jednokrotnego wyboru.
+Statyczna aplikacja webowa do nauki przepisów prawnych poprzez testy jednokrotnego wyboru i infografiki.
 
 Postęp nauki oraz niedokończone sesje są zapisywane lokalnie w przeglądarce. Po ponownym otwarciu test jest kontynuowany od ostatniego pytania. Pytanie, na które udzielono poprawnej odpowiedzi w dwóch kolejnych ukończonych sesjach, nie pojawia się w następnych testach. Każde pytanie można też ręcznie usunąć z puli po potwierdzeniu tej decyzji. Przycisk „Przywróć wszystkie pytania” na stronie głównej zeruje ten postęp, przywraca ręcznie usunięte pytania i usuwa niedokończone sesje.
 
@@ -18,6 +18,10 @@ Na Androidzie:
 Przycisk pojawia się tylko na Androidzie, gdy Chrome udostępnia instalację, i znika po zainstalowaniu aplikacji. W Firefoksie należy wybrać z menu przeglądarki „Zainstaluj aplikację” albo „Dodaj do ekranu głównego”.
 
 Zainstalowana aplikacja ma własną ikonę i uruchamia się w osobnym oknie. Chrome zapewnia pełny tryb instalacji PWA; Firefox obsługuje dodanie aplikacji do ekranu głównego i jej działanie offline.
+
+## Materiały do nauki
+
+Sekcja „Nauka” zawiera infografiki z katalogu `materialy-do-nauki`. Galeria i pełne wersje obrazów są dostosowane do ekranów telefonów. Wszystkie materiały są zapisywane przez Service Workera i po pierwszym pełnym uruchomieniu aplikacji można je otwierać bez internetu.
 
 ## Uruchomienie lokalne
 
@@ -52,4 +56,4 @@ http://localhost:8000/index.html?quiz=przyroda
 
 ## Aktualizowanie wersji offline
 
-Plik `sw.js` zapisuje pliki aplikacji i zestawy pytań w pamięci podręcznej. Po zmianie zasobów umieszczonych w tablicy `APP_FILES` należy zwiększyć wersję w stałej `CACHE_NAME`, np. z `testy-z-ustaw-v4` na `testy-z-ustaw-v5`. Dzięki temu zainstalowane aplikacje usuną poprzedni cache i pobiorą aktualną wersję.
+Plik `sw.js` zapisuje pliki aplikacji, zestawy pytań i infografiki w pamięci podręcznej. Po zmianie zasobów umieszczonych w tablicy `APP_FILES` należy zwiększyć wersję w stałej `CACHE_NAME`, np. z `testy-z-ustaw-v5` na `testy-z-ustaw-v6`. Dzięki temu zainstalowane aplikacje usuną poprzedni cache i pobiorą aktualną wersję.
