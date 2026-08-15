@@ -1,6 +1,6 @@
 "use strict";
 
-const CACHE_NAME = "testy-z-ustaw-v5";
+const CACHE_NAME = "testy-z-ustaw-v6";
 const APP_FILES = [
   "./",
   "./index.html",
@@ -14,13 +14,27 @@ const APP_FILES = [
   "./icons/apple-touch-icon.png",
   "./materialy-do-nauki/Najwazniejsze.png",
   "./materialy-do-nauki/Kodeks postępowania.png",
+  "./materialy-do-nauki/Kodeks-postępowania.png",
+  "./materialy-do-nauki/KPA-definicje.png",
+  "./materialy-do-nauki/KPA-terminy.png",
   "./materialy-do-nauki/kpo-praktyka.png",
   "./materialy-do-nauki/Ustawa o pracownikach samorzadowych.png",
+  "./materialy-do-nauki/Ustawa-o-pracownikach-samorządowych.png",
+  "./materialy-do-nauki/Pracownicy-samorządowi-definicje.png",
+  "./materialy-do-nauki/Pracownicy-samorządowi-nadzór.png",
   "./materialy-do-nauki/Ustawa o samorzadzie.png",
+  "./materialy-do-nauki/Ust-o-samorządzie.png",
+  "./materialy-do-nauki/Samorząd-gminny-organy.png",
+  "./materialy-do-nauki/Samorząd-gminny-terminy.png",
   "./materialy-do-nauki/Ustawa o lasach.png",
+  "./materialy-do-nauki/Ustawa-o-lasach.png",
   "./materialy-do-nauki/Ustawa o ochronie przyrody.png",
   "./materialy-do-nauki/Formy ochrony przyrody.png",
   "./materialy-do-nauki/Ustawa OOŚ.png",
+  "./materialy-do-nauki/Uwstawa-o-udostępnianiu.png",
+  "./materialy-do-nauki/Informacje-o-środowisku.png",
+  "./materialy-do-nauki/Informacja o środowisku-organy.png",
+  "./materialy-do-nauki/Informacja-o-środowisku-terminy.png",
   "./materialy-do-nauki/DŚU a OOŚ.png",
   "./materialy-do-nauki/KIP a raport OOŚ.png",
   "./data/pytania_Kodeks_postepowania_administracyjnego_KPA.csv",
